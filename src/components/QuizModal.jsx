@@ -10,8 +10,8 @@ const QuizModal = ({ showQuiz = false, quizAnswered = false, quizResult = null, 
           <h2>Mini Quiz</h2>
           <p className="quiz-question">{quizDataForLevel.question}</p>
           <div className="options">
-            {quizDataForLevel.options.map((opt) => (
-              <button key={opt} className="option" onClick={() => onAnswer(opt)}>{opt}</button>
+            {quizDataForLevel.options.map((opt, i) => (
+              <button key={`${opt}-${i}`} className="option" onClick={() => onAnswer(i)}>{opt}</button>
             ))}
           </div>
           <div className="quiz-footer">
@@ -31,11 +31,11 @@ const QuizModal = ({ showQuiz = false, quizAnswered = false, quizResult = null, 
               <h2>Respuesta incorrecta 😅</h2>
               <p>{quizDataForLevel.info}</p>
               <div className="options result-options">
-                {quizDataForLevel.options.map((opt) => {
-                  const isCorrectOpt = opt === quizDataForLevel.correct;
-                  const isSelected = opt === selectedOption;
+                {quizDataForLevel.options.map((opt, i) => {
+                  const isCorrectOpt = i === quizDataForLevel.correctIndex;
+                  const isSelected = i === selectedOption;
                   const className = isCorrectOpt ? 'option correct' : (isSelected ? 'option wrong' : 'option disabled');
-                  return <button key={opt} className={className} disabled>{opt}</button>;
+                  return <button key={`${opt}-${i}`} className={className} disabled>{opt}</button>;
                 })}
               </div>
             </>

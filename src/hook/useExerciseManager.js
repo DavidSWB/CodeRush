@@ -132,10 +132,11 @@ export default function useExerciseManager({ onCorrectQuiz, onAdjustTimeLimit, o
     generateNewExercise();
   };
 
-  const handleQuizAnswer = (opt, onCorrectCb) => {
-    setSelectedOption(opt);
-    const correctOption = currentQuiz ? (currentQuiz.options[currentQuiz.correct]) : null;
-    const isCorrect = correctOption ? opt === correctOption : false;
+  const handleQuizAnswer = (optIndex, onCorrectCb) => {
+    // optIndex is expected to be the index of the selected option
+    setSelectedOption(optIndex);
+    const correctIdx = currentQuiz ? currentQuiz.correct : null;
+    const isCorrect = (typeof correctIdx === 'number') ? optIndex === correctIdx : false;
     setQuizAnswered(true);
     setQuizResult(isCorrect);
     if (isCorrect) {

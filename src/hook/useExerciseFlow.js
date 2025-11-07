@@ -105,8 +105,16 @@ export default function useExerciseFlow({ timer, manager, onColorChange, onTimeo
 			if (manager && typeof manager.reportCompletion === 'function') {
 				try {
 					manager.reportCompletion({ timeUsedSeconds, timeLimit: (timer && timer.timeLimit) || 0, currentExerciseLevel: manager.currentExerciseLevel });
+					// ensure quiz is shown (manager.reportCompletion normally does this)
+					if (typeof manager.setShowQuiz === 'function') manager.setShowQuiz(true);
 				} catch (e) {
-					// ignore
+					// unexpected error during completion flow must not leave app stuck
+					// fallback: generate a new exercise after a short delay
+					// eslint-disable-next-line no-console
+					console.error('reportCompletion failed:', e);
+					setTimeout(() => {
+						try { generateNewExercise(); } catch (err) { /* swallow */ }
+					}, 400);
 				}
 			}
 		}

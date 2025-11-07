@@ -48,6 +48,15 @@ function App() {
   // initial exercise
   useEffect(() => { generateNewExercise(); }, []);
 
+  // defensive: when quiz opens, blur active element to avoid input overlays capturing events
+  useEffect(() => {
+    if (manager.showQuiz) {
+      try {
+        (document.activeElement instanceof HTMLElement) && document.activeElement.blur();
+      } catch (e) { /* ignore */ }
+    }
+  }, [manager.showQuiz]);
+
   return (
     <div className="app" style={{ '--neon-color': currentColor.color, '--neon-r': currentColor.r, '--neon-g': currentColor.g, '--neon-b': currentColor.b }}>
       <Header
@@ -91,8 +100,8 @@ function App() {
           question: manager.currentQuiz.question || '',
           options: manager.currentQuiz.options || [],
           info: manager.currentQuiz.info || '',
-          correct: manager.currentQuiz.options ? manager.currentQuiz.options[manager.currentQuiz.correct] : ''
-        }) || { question: '', options: [], info: '', correct: '' }}
+          correctIndex: typeof manager.currentQuiz.correct === 'number' ? manager.currentQuiz.correct : null
+        }) || { question: '', options: [], info: '', correctIndex: null }}
         currentExerciseLevel={manager.currentExerciseLevel}
         selectedOption={manager.selectedOption}
         onAnswer={(opt) => manager.handleQuizAnswer(opt)}
