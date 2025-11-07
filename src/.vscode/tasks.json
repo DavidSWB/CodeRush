@@ -1,0 +1,10 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Create temp file",
+			"type": "shell",
+			"command": "type nul > App.jsx.new"
+		}
+	]
+}

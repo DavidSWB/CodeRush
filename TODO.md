@@ -1,0 +1,10 @@
+- [ ] Change state: replace 'level' with 'activeLevels' (array), add 'currentExerciseLevel'
+- [ ] Update loadProgress and saveProgress to handle activeLevels instead of level
+- [ ] Modify changeLevel to toggleLevel function, check if unlocked before toggling
+- [ ] Update generateNewExercise to combine exercises from activeLevels, set currentExerciseLevel
+- [ ] Update handleInputChange to increment completed based on currentExerciseLevel
+- [ ] Change unlock thresholds to 10 for each level
+- [ ] Add reset button with symbol and reset function to clear all progress
+- [ ] Update button rendering: className based on activeLevels.includes, onClick toggleLevel
+- [ ] Update stats display to show active levels instead of single level
+- [ ] Update useEffect for generateNewExercise on activeLevels change
