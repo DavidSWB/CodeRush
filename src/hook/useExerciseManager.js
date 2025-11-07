@@ -3,66 +3,64 @@ import { ejerciciosBasicos } from '../niveles/basicos';
 import { ejerciciosIntermedios } from '../niveles/medios';
 import { ejerciciosAvanzados } from '../niveles/avanzado';
 import { initBackground, removeBackground } from '../background.js';
+import { getRandomQuestion } from '../data/quizData';
+import useLocalPersistence from './useLocalPersistence';
 
 const getRandomExercise = (exercises) => exercises[Math.floor(Math.random() * exercises.length)];
 
 export default function useExerciseManager({ onCorrectQuiz, onAdjustTimeLimit, onResetTimeLimit } = {}) {
-  const [activeLevels, setActiveLevels] = useState(() => JSON.parse(localStorage.getItem('coderush-active-levels') || '["basic"]'));
+  const persist = useLocalPersistence();
+
+  const [activeLevels, setActiveLevels] = useState(() => persist.get('active-levels', ['basic']));
   const [currentExerciseLevel, setCurrentExerciseLevel] = useState('basic');
   const [exercise, setExercise] = useState({ code: '', description: '' });
 
-  const [unlockedLevels, setUnlockedLevels] = useState(() => JSON.parse(localStorage.getItem('coderush-unlocked') || '["basic"]'));
-  const [completedBasic, setCompletedBasic] = useState(() => parseInt(localStorage.getItem('coderush-completed-basic')) || 0);
-  const [completedIntermediate, setCompletedIntermediate] = useState(() => parseInt(localStorage.getItem('coderush-completed-intermediate')) || 0);
-  const [completedAdvanced, setCompletedAdvanced] = useState(() => parseInt(localStorage.getItem('coderush-completed-advanced')) || 0);
+  const [unlockedLevels, setUnlockedLevels] = useState(() => persist.get('unlocked', ['basic']));
+  const [completedBasic, setCompletedBasic] = useState(() => persist.get('completed-basic', 0) || 0);
+  const [completedIntermediate, setCompletedIntermediate] = useState(() => persist.get('completed-intermediate', 0) || 0);
+  const [completedAdvanced, setCompletedAdvanced] = useState(() => persist.get('completed-advanced', 0) || 0);
 
-  const [lastTimes, setLastTimes] = useState(() => JSON.parse(localStorage.getItem('coderush-last-times') || '[]'));
-  const [lastConsumptions, setLastConsumptions] = useState(() => JSON.parse(localStorage.getItem('coderush-last-consumptions') || '[]'));
+  const [lastTimes, setLastTimes] = useState(() => persist.get('last-times', []) || []);
+  const [lastConsumptions, setLastConsumptions] = useState(() => persist.get('last-consumptions', []) || []);
 
-  const [bestStreak, setBestStreak] = useState(() => parseInt(localStorage.getItem('coderush-best-streak')) || 0);
-  const [streakRecords, setStreakRecords] = useState(() => JSON.parse(localStorage.getItem('coderush-streak-records') || '[]'));
+  const [bestStreak, setBestStreak] = useState(() => persist.get('best-streak', 0) || 0);
+  const [streakRecords, setStreakRecords] = useState(() => persist.get('streak-records', []) || []);
   // scoring and streak
-  const [score, setScore] = useState(() => parseInt(localStorage.getItem('coderush-score')) || 0);
-  const [streak, setStreak] = useState(0);
+  const [score, setScore] = useState(() => persist.get('score', 0) || 0);
+  const [streak, setStreakRaw] = useState(0);
+
+  // wrap setStreak so that when streak resets to 0 we also reset score
+  const setStreak = (val) => {
+    setStreakRaw(val);
+    if (val === 0) {
+      setScore(0);
+      persist.set('score', 0);
+    }
+  };
 
   // QUIZ
   const [showQuiz, setShowQuiz] = useState(false);
   const [quizAnswered, setQuizAnswered] = useState(false);
   const [quizResult, setQuizResult] = useState(null);
   const [selectedOption, setSelectedOption] = useState(null);
+  const [currentQuiz, setCurrentQuiz] = useState(null);
 
-  const quizData = {
-    basic: {
-      question: '¿Qué tipo de dato se usa para almacenar texto en Java?',
-      options: ['String', 'int', 'boolean'],
-      correct: 'String',
-      info: 'En Java, String representa una secuencia de caracteres y se usa para almacenar texto.'
-    },
-    intermediate: {
-      question: '¿Qué palabra clave local permite inferir el tipo en Java (desde Java 10)?',
-      options: ['final', 'var', 'static'],
-      correct: 'var',
-      info: 'Desde Java 10 se puede usar "var" para inferir el tipo de variables locales.'
-    },
-    advanced: {
-      question: '¿Qué es una clase en Java?',
-      options: ['Una plantilla para crear objetos', 'Una función especial', 'Un paquete'],
-      correct: 'Una plantilla para crear objetos',
-      info: 'Las clases definen atributos y métodos que determinan el comportamiento de los objetos.'
-    }
-  };
+  // quiz questions are sourced from data/quizData and a random question is chosen per completion
 
   useEffect(() => {
-    localStorage.setItem('coderush-active-levels', JSON.stringify(activeLevels));
-    localStorage.setItem('coderush-completed-basic', completedBasic);
-    localStorage.setItem('coderush-completed-intermediate', completedIntermediate);
-    localStorage.setItem('coderush-completed-advanced', completedAdvanced);
-    localStorage.setItem('coderush-last-times', JSON.stringify(lastTimes));
-    localStorage.setItem('coderush-last-consumptions', JSON.stringify(lastConsumptions));
-    localStorage.setItem('coderush-best-streak', bestStreak);
-    localStorage.setItem('coderush-streak-records', JSON.stringify(streakRecords));
-    localStorage.setItem('coderush-unlocked', JSON.stringify(unlockedLevels));
-  }, [activeLevels, completedBasic, completedIntermediate, completedAdvanced, lastTimes, lastConsumptions, bestStreak, streakRecords, unlockedLevels]);
+    persist.persistState({
+      'active-levels': activeLevels,
+      'completed-basic': completedBasic,
+      'completed-intermediate': completedIntermediate,
+      'completed-advanced': completedAdvanced,
+      'last-times': lastTimes,
+      'last-consumptions': lastConsumptions,
+      'best-streak': bestStreak,
+      'streak-records': streakRecords,
+      'unlocked': unlockedLevels,
+      'score': score
+    });
+  }, [activeLevels, completedBasic, completedIntermediate, completedAdvanced, lastTimes, lastConsumptions, bestStreak, streakRecords, unlockedLevels, score, persist]);
 
   const generateNewExercise = () => {
     const randomLevel = activeLevels[Math.floor(Math.random() * activeLevels.length)];
@@ -83,7 +81,7 @@ export default function useExerciseManager({ onCorrectQuiz, onAdjustTimeLimit, o
     if (!unlockedLevels.includes(newLevel)) {
       const newUnlocked = [...unlockedLevels, newLevel];
       setUnlockedLevels(newUnlocked);
-      localStorage.setItem('coderush-unlocked', JSON.stringify(newUnlocked));
+      persist.set('unlocked', newUnlocked);
     }
   };
 
@@ -98,8 +96,19 @@ export default function useExerciseManager({ onCorrectQuiz, onAdjustTimeLimit, o
   };
 
   const resetProgress = () => {
-    // clear all localStorage to match previous behavior
-    localStorage.clear();
+    // reset persisted app keys and local state
+    persist.persistState({
+      'active-levels': ['basic'],
+      'unlocked': ['basic'],
+      'completed-basic': 0,
+      'completed-intermediate': 0,
+      'completed-advanced': 0,
+      'last-times': [],
+      'last-consumptions': [],
+      'best-streak': 0,
+      'streak-records': [],
+      'score': 0
+    });
     setActiveLevels(['basic']);
     setCurrentExerciseLevel('basic');
     setUnlockedLevels(['basic']);
@@ -118,19 +127,22 @@ export default function useExerciseManager({ onCorrectQuiz, onAdjustTimeLimit, o
         // ignore
       }
     }
+    // ensure score state is reset too
+    setScore(0);
     generateNewExercise();
   };
 
   const handleQuizAnswer = (opt, onCorrectCb) => {
     setSelectedOption(opt);
-    const isCorrect = opt === quizData[currentExerciseLevel].correct;
+    const correctOption = currentQuiz ? (currentQuiz.options[currentQuiz.correct]) : null;
+    const isCorrect = correctOption ? opt === correctOption : false;
     setQuizAnswered(true);
     setQuizResult(isCorrect);
     if (isCorrect) {
       // award points for correct quiz
       setScore(prev => {
         const next = prev + 10;
-        localStorage.setItem('coderush-score', next);
+        persist.set('score', next);
         return next;
       });
       if (typeof onCorrectCb === 'function') onCorrectCb();
@@ -151,7 +163,7 @@ export default function useExerciseManager({ onCorrectQuiz, onAdjustTimeLimit, o
     const totalPoints = basePoints + streak;
     setScore(prev => {
       const next = prev + totalPoints;
-      localStorage.setItem('coderush-score', next);
+      persist.set('score', next);
       return next;
     });
 
@@ -188,10 +200,10 @@ export default function useExerciseManager({ onCorrectQuiz, onAdjustTimeLimit, o
     const consumptionPercent = Math.round((timeUsedSeconds / timeLimit) * 100);
     const newLastTimes = [...lastTimes, timeUsedSeconds].slice(-20);
     const newConsumptions = [...lastConsumptions, consumptionPercent].slice(-20);
-    setLastTimes(newLastTimes);
-    setLastConsumptions(newConsumptions);
-    localStorage.setItem('coderush-last-times', JSON.stringify(newLastTimes));
-    localStorage.setItem('coderush-last-consumptions', JSON.stringify(newConsumptions));
+  setLastTimes(newLastTimes);
+  setLastConsumptions(newConsumptions);
+  persist.set('last-times', newLastTimes);
+  persist.set('last-consumptions', newConsumptions);
 
     // Ajuste del TTE (Tiempo Total del Ejercicio)
     const MIN_TTE = 7;  // segundos
@@ -213,10 +225,14 @@ export default function useExerciseManager({ onCorrectQuiz, onAdjustTimeLimit, o
     
     let proposedLimit = newTTE;
 
-    // persist changes and show quiz
-    setLastTimes(newLastTimes);
-    setLastConsumptions(newConsumptions);
-    setShowQuiz(true);
+  // pick a random quiz question for the current level and show quiz
+  try {
+    const q = getRandomQuestion(currentExerciseLevel);
+    setCurrentQuiz(q || null);
+  } catch (e) {
+    setCurrentQuiz(null);
+  }
+  setShowQuiz(true);
 
     // call callback to adjust time limit in the timer hook (App passes setTimeLimit)
     if (typeof onAdjustTimeLimit === 'function') {
@@ -252,7 +268,7 @@ export default function useExerciseManager({ onCorrectQuiz, onAdjustTimeLimit, o
     streakRecords,
     lastTimes,
     lastConsumptions,
-    quizData,
+    currentQuiz,
     showQuiz,
     setShowQuiz,
     quizAnswered,
