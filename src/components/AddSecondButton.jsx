@@ -6,10 +6,10 @@ const AddSecondButton = ({ visible = false, timeRemaining = 0, onClick = () => {
     <button
       className={`add-second-button ${timeRemaining <= 4 ? 'animate-in' : ''} ${className}`}
       onClick={onClick}
-      title={timerStarted ? (timerIsPaused ? 'No disponible mientras está en pausa' : '+2s') : 'Escribe para activar'}
+      title={timerStarted ? (timerIsPaused ? 'No disponible mientras está en pausa' : '+5s') : 'Escribe para activar'}
       style={style}
     >
-      + 2s
+      + 5s
     </button>
   );
 };

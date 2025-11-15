@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { ejerciciosBasicos } from '../niveles/basicos';
 import { ejerciciosIntermedios } from '../niveles/medios';
 import { ejerciciosAvanzados } from '../niveles/avanzado';
@@ -10,6 +10,7 @@ const getRandomExercise = (exercises) => exercises[Math.floor(Math.random() * ex
 
 export default function useExerciseManager({ onCorrectQuiz, onAdjustTimeLimit, onResetTimeLimit } = {}) {
   const persist = useLocalPersistence();
+  const isFirstGenerationRef = useRef(true); // Track if this is the first exercise generation
 
   const [activeLevels, setActiveLevels] = useState(() => persist.get('active-levels', ['basic']));
   const [currentExerciseLevel, setCurrentExerciseLevel] = useState('basic');
@@ -45,6 +46,9 @@ export default function useExerciseManager({ onCorrectQuiz, onAdjustTimeLimit, o
   const [selectedOption, setSelectedOption] = useState(null);
   const [currentQuiz, setCurrentQuiz] = useState(null);
 
+  // Track the next time limit to apply at exercise generation
+  const [nextTimeLimit, setNextTimeLimit] = useState(15);
+
   // quiz questions are sourced from data/quizData and a random question is chosen per completion
 
   useEffect(() => {
@@ -74,6 +78,19 @@ export default function useExerciseManager({ onCorrectQuiz, onAdjustTimeLimit, o
     const newExerciseObject = getRandomExercise(exercises);
     setCurrentExerciseLevel(randomLevel);
     setExercise(newExerciseObject);
+    
+    // ONLY apply time limit on first generation (app startup)
+    // After that, the time is applied in useExerciseFlow when exercise completes
+    if (isFirstGenerationRef.current) {
+      isFirstGenerationRef.current = false;
+      if (typeof onAdjustTimeLimit === 'function') {
+        try {
+          onAdjustTimeLimit(nextTimeLimit);
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
     // showQuiz will be controlled by the parent when appropriate
   };
 
@@ -119,6 +136,7 @@ export default function useExerciseManager({ onCorrectQuiz, onAdjustTimeLimit, o
     setLastConsumptions([]);
     setBestStreak(0);
     setStreakRecords([]);
+    setNextTimeLimit(15); // reset next time limit to default
     // Reset time limit to default (15s)
     if (typeof onResetTimeLimit === 'function') {
       try {
@@ -207,44 +225,39 @@ export default function useExerciseManager({ onCorrectQuiz, onAdjustTimeLimit, o
   persist.set('last-consumptions', newConsumptions);
 
     // Ajuste del TTE (Tiempo Total del Ejercicio)
-    const MIN_TTE = 7;  // segundos
-    const MAX_TTE = 30; // segundos
-    const TTE_CHANGE = 3; // segundos a sumar/restar
+    // The time limit is ALWAYS reset to its initial value, then adjusted based on performance
+    const INITIAL_TTE = 15; // default starting time
+    const MIN_TTE = 5;  // never go below 5s
+    const MAX_TTE = 30; // never go above 30s
+    const TTE_CHANGE = 3; // change amount when adjusting
     
-    let newTTE = timeLimit; // empezamos con el TTE actual
+    // STEP 1: Always reset to initial time limit
+    let newTTE = INITIAL_TTE;
     
-    // Cálculo basado en el tiempo usado (no el restante)
-    if (timeUsedSeconds < 7) {
-      // Completó rápido: restar 3s al TTE (mínimo 7s)
-      newTTE = Math.max(MIN_TTE, timeLimit - TTE_CHANGE);
+    // STEP 2: Adjust based on how fast/slow the user completed the exercise
+    // If completed very fast (<5s) AND initial timeLimit is >= 8s, reduce by 3s
+    if (timeUsedSeconds < 5 && INITIAL_TTE >= 8) {
+      newTTE = Math.max(MIN_TTE, INITIAL_TTE - TTE_CHANGE);
     } 
-    else if (timeUsedSeconds > 12 || timeUsedSeconds >= timeLimit) {
-      // Tardó mucho o se acabó el tiempo: sumar 3s al TTE (máximo 30s)
-      newTTE = Math.min(MAX_TTE, timeLimit + TTE_CHANGE);
+    // If completed very slow (>15s), increase by 3s
+    else if (timeUsedSeconds > 15) {
+      newTTE = Math.min(MAX_TTE, INITIAL_TTE + TTE_CHANGE);
     }
-    // else: mantiene el mismo TTE si usó entre 7-12 segundos
+    // Otherwise keep the initial time limit unchanged
     
-    let proposedLimit = newTTE;
+    // Store the new time limit to apply when next exercise is generated
+    setNextTimeLimit(newTTE);
 
-  // pick a random quiz question for the current level and show quiz
+  // pick a random quiz question and show quiz
   try {
-    const q = getRandomQuestion(currentExerciseLevel);
+    const q = getRandomQuestion();
     setCurrentQuiz(q || null);
   } catch (e) {
     setCurrentQuiz(null);
   }
   setShowQuiz(true);
 
-    // call callback to adjust time limit in the timer hook (App passes setTimeLimit)
-    if (typeof onAdjustTimeLimit === 'function') {
-      try {
-        onAdjustTimeLimit(proposedLimit);
-      } catch (e) {
-        // ignore
-      }
-    }
-
-    return { totalPoints, newStreak, proposedLimit };
+    return { totalPoints, newStreak, proposedLimit: newTTE };
   };
 
   const closeQuiz = () => {
@@ -275,6 +288,8 @@ export default function useExerciseManager({ onCorrectQuiz, onAdjustTimeLimit, o
     quizAnswered,
     quizResult,
     selectedOption,
+    nextTimeLimit,
+    setNextTimeLimit,
     generateNewExercise,
     unlockLevel,
     toggleLevel,

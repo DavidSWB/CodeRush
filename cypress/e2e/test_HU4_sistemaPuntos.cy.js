@@ -24,7 +24,7 @@ describe('HU-4: Sistema de puntos', () => {
 
       // Completa el quiz
       cy.get('.quiz-modal').should('be.visible');
-      cy.contains('button.option', 'String').click();
+      cy.get('.quiz-modal').find('button.option').first().click();
       cy.get('button.start-level').click();
 
       cy.wait(500);

@@ -8,6 +8,7 @@ import useColorCycle from './hook/useColorCycle';
 import useCopyCode from './hook/useCopyCode';
 import useTipsRotator from './hook/useTipsRotator';
 import useAddSecondButton from './hook/useAddSecondButton';
+import { initBackground, removeBackground } from './background';
 
 import Header from './components/Header';
 import SamplePanel from './components/SamplePanel';
@@ -22,7 +23,7 @@ import TimerControls from './components/TimerControls';
 
 // Constantes del TTE (Tiempo Total del Ejercicio)
 const INITIAL_TTE = 15; // default TTE
-const MIN_TTE = 7;
+const MIN_TTE = 5;
 const MAX_TTE = 30;
 
 function App() {
@@ -36,17 +37,30 @@ function App() {
   const manager = useExerciseManager({ onAdjustTimeLimit: timer.setTimeLimit, onResetTimeLimit: () => timer.setTimeLimit(INITIAL_TTE) });
 
   // exercise flow (input handling, completion, add-second)
-  const { typingProps, feedback, addSecondProps, generateNewExercise, handleTimeout, handleAddSecond } = useExerciseFlow({ timer, manager, onColorChange: changeColor, onTimeoutRef });
+  const { typingProps, feedback, addSecondProps, generateNewExercise, handleTimeout, handleAddSecond } = useExerciseFlow({ timer, manager, onColorChange: changeColor, onTimeoutRef, onAdjustTimeLimit: timer.setTimeLimit });
 
   // clipboard
   const { handleCopyCode, showCopiedToast } = useCopyCode();
 
   // tips and add-second position
   const { tip: currentTip } = useTipsRotator();
-  const { visible: addVisible, style: addStyle } = useAddSecondButton({ timeRemaining: timer.timeRemaining });
+  const { visible: addVisible, style: addStyle, onClick: addOnClick } = useAddSecondButton({ timeRemaining: timer.timeRemaining, onClick: addSecondProps.onAddSecond });
 
   // initial exercise
   useEffect(() => { generateNewExercise(); }, []);
+
+  // ensure background is always present
+  useEffect(() => {
+    try { initBackground(); } catch (e) { /* ignore */ }
+    return () => { try { removeBackground(); } catch (e) { /* ignore */ } };
+  }, []);
+
+  // inform background of timer changes so it can slow down / speed up and change colors
+  useEffect(() => {
+    try {
+      window.dispatchEvent(new CustomEvent('coderush-bg-update', { detail: { timeRemaining: timer.timeRemaining, timeLimit: timer.timeLimit } }));
+    } catch (e) { /* ignore */ }
+  }, [timer.timeRemaining, timer.timeLimit]);
 
   // defensive: when quiz opens, blur active element to avoid input overlays capturing events
   useEffect(() => {
@@ -108,22 +122,22 @@ function App() {
         onClose={() => manager.closeQuiz()}
       />
 
-      <AddSecondButton
+        <AddSecondButton
         visible={addVisible}
         timeRemaining={addSecondProps.timeRemaining}
-        onClick={addSecondProps.onAddSecond}
+        onClick={addOnClick}
         timerStarted={addSecondProps.timerStarted}
         timerIsPaused={addSecondProps.timerIsPaused}
         style={{
           position: 'fixed',
           zIndex: 9999,
-          width: 120,
-          height: 120,
+          width: 180,
+          height: 180,
           borderRadius: '50%',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: 26,
+          fontSize: 39,
           fontWeight: 800,
           cursor: (addSecondProps.timerStarted && !addSecondProps.timerIsPaused) ? 'pointer' : 'not-allowed',
           border: `4px solid ${currentColor.color}`,

@@ -26,7 +26,7 @@ describe('HU-2: Ajuste dinámico del tiempo límite', () => {
 
       cy.get('.success', { timeout: 5000 }).should('be.visible');
       cy.get('.quiz-modal').should('be.visible');
-      cy.contains('button.option', 'String').click(); // selecciona opción correcta
+      cy.get('.quiz-modal').find('button.option').first().click(); // selecciona opción correcta
       cy.get('button.start-level').click(); // cierra el quiz y genera nuevo ejercicio
 
       cy.wait(1000);
@@ -55,7 +55,7 @@ describe('HU-2: Ajuste dinámico del tiempo límite', () => {
 
       cy.get('.success', { timeout: 20000 }).should('be.visible');
       cy.get('.quiz-modal').should('be.visible');
-      cy.contains('button.option', 'String').click();
+      cy.get('.quiz-modal').find('button.option').first().click();
       cy.get('button.start-level').click();
 
       cy.wait(1000);

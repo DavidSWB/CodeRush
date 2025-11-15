@@ -8,27 +8,28 @@ function randomPosition(size = 120) {
   return { left: `${left}px`, top: `${top}px`, transform: 'translate(0,0)' };
 }
 
-export default function useAddSecondButton({ timeRemaining, threshold = 7, moveInterval = 900, size = 120 }) {
+export default function useAddSecondButton({ timeRemaining, threshold = 7, moveInterval = 900, size = 180, onClick } = {}) {
   const [visible, setVisible] = useState(false);
   const [style, setStyle] = useState({ top: '50%', left: '50%', transform: 'translate(-50%,-50%)' });
   const moverRef = useRef(null);
+  const [clicked, setClicked] = useState(false);
 
   useEffect(() => {
     if (timeRemaining > 0 && timeRemaining < threshold) setVisible(true);
     else setVisible(false);
   }, [timeRemaining, threshold]);
 
+  // when visible but not yet clicked, just set an initial random position (no movement)
   useEffect(() => {
     if (visible) {
       setStyle(randomPosition(size));
-      moverRef.current = setInterval(() => {
-        setStyle(randomPosition(size));
-      }, moveInterval);
     } else {
+      // clear mover/clicked state when hidden
       if (moverRef.current) {
         clearInterval(moverRef.current);
         moverRef.current = null;
       }
+      setClicked(false);
     }
 
     return () => {
@@ -37,7 +38,22 @@ export default function useAddSecondButton({ timeRemaining, threshold = 7, moveI
         moverRef.current = null;
       }
     };
-  }, [visible, moveInterval, size]);
+  }, [visible, size]);
 
-  return { visible, style };
+  const wrappedOnClick = (e) => {
+    // call provided onClick first so behavior remains intact
+    try {
+      if (typeof onClick === 'function') onClick(e);
+    } catch (err) { /* ignore */ }
+
+    // after the first click, start moving randomly at intervals
+    if (!clicked) {
+      setClicked(true);
+      moverRef.current = setInterval(() => {
+        setStyle(randomPosition(size));
+      }, moveInterval);
+    }
+  };
+
+  return { visible, style, onClick: wrappedOnClick };
 }

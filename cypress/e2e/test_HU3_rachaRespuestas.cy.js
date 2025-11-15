@@ -15,7 +15,7 @@ describe('HU-3: Racha de respuestas correctas', () => {
         cy.get('textarea.overlay-textarea').clear().type(correctCode, { delay: 20 });
         cy.get('.success', { timeout: 5000 }).should('be.visible');
         cy.get('.quiz-modal').should('be.visible');
-        cy.contains('button.option', 'String').click(); // responde bien el quiz
+        cy.get('.quiz-modal').find('button.option').first().click(); // responde bien el quiz
         cy.get('button.start-level').click(); // continúa
       });
     };

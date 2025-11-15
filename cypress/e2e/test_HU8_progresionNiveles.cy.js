@@ -16,7 +16,7 @@ describe('HU-8: Progresión por niveles', () => {
         cy.get('textarea.overlay-textarea').clear().type(correctCode, { delay: 15 });
         cy.get('.success', { timeout: 6000 }).should('be.visible');
         cy.get('.quiz-modal').should('be.visible');
-        cy.contains('button.option', 'String').click();
+        cy.get('.quiz-modal').find('button.option').first().click();
         cy.get('button.start-level').click();
       });
     };

@@ -1,9 +1,6 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
-import { removeBackground } from '../background';
 
-const MAX_TTE = 30;
-
-export default function useExerciseFlow({ timer, manager, onColorChange, onTimeoutRef } = {}) {
+export default function useExerciseFlow({ timer, manager, onColorChange, onTimeoutRef, onAdjustTimeLimit } = {}) {
 	const inputRef = useRef(null);
 	const [userInput, setUserInput] = useState('');
 	const [isCorrect, setIsCorrect] = useState(false);
@@ -17,19 +14,27 @@ export default function useExerciseFlow({ timer, manager, onColorChange, onTimeo
 		setHasError(false);
 		setIncorrectChar('');
 		if (typeof onColorChange === 'function') onColorChange();
-		if (timer && typeof timer.resetForNewExercise === 'function') timer.resetForNewExercise();
+		// resetForNewExercise must be called AFTER manager.generateNewExercise() 
+		// because generateNewExercise calls onAdjustTimeLimit which updates timeLimit asynchronously
+		// We use a small setTimeout to ensure timeLimit has been updated before resetting
+		setTimeout(() => {
+			if (timer && typeof timer.resetForNewExercise === 'function') timer.resetForNewExercise();
+		}, 0);
 	}, [manager, onColorChange, timer]);
 
 	const handleTimeout = useCallback(() => {
 		if (manager && typeof manager.setStreak === 'function') manager.setStreak(0);
-		try {
-			const newTTE = Math.min(MAX_TTE, (timer && timer.timeLimit) ? timer.timeLimit + 3 : MAX_TTE);
-			if (timer && typeof timer.setTimeLimit === 'function') timer.setTimeLimit(newTTE);
-		} catch (e) {
-			// ignore
+		// When timeout occurs, increase the time limit for the next exercise
+		if (manager && typeof manager.setNextTimeLimit === 'function') {
+			const currentTimeLimit = (timer && timer.timeLimit) || 15;
+			const newTTE = Math.min(30, currentTimeLimit + 3); // MAX_TTE = 30
+			try {
+				manager.setNextTimeLimit(newTTE);
+			} catch (e) {
+				// ignore
+			}
 		}
-			setTimeout(() => generateNewExercise(), 800);
-			try { removeBackground(); } catch (e) { /* ignore if unavailable */ }
+		setTimeout(() => generateNewExercise(), 800);
 	}, [generateNewExercise, manager, timer]);
 
 	// wire timeout into caller-provided ref
@@ -57,8 +62,10 @@ export default function useExerciseFlow({ timer, manager, onColorChange, onTimeo
 		if (!timer.started) return false;
 		if (timer.isPaused) return false;
 		if (timer.timeRemaining <= 0) return false;
-		if (typeof timer.addSeconds === 'function') timer.addSeconds(2);
+		if (typeof timer.addSeconds === 'function') timer.addSeconds(5);
 		if (typeof onColorChange === 'function') onColorChange();
+		// auto-focus the input so user can continue typing immediately
+		try { inputRef.current?.focus(); } catch (e) { /* ignore */ }
 		return true;
 	}, [onColorChange, timer]);
 
@@ -104,7 +111,16 @@ export default function useExerciseFlow({ timer, manager, onColorChange, onTimeo
 			const timeUsedSeconds = result.timeUsedSeconds || 0;
 			if (manager && typeof manager.reportCompletion === 'function') {
 				try {
-					manager.reportCompletion({ timeUsedSeconds, timeLimit: (timer && timer.timeLimit) || 0, currentExerciseLevel: manager.currentExerciseLevel });
+					const completionResult = manager.reportCompletion({ timeUsedSeconds, timeLimit: (timer && timer.timeLimit) || 0, currentExerciseLevel: manager.currentExerciseLevel });
+					// Apply the adjusted time limit IMMEDIATELY before showing quiz
+					// This ensures the next exercise uses the correct time limit without delay
+					if (completionResult && completionResult.proposedLimit && typeof onAdjustTimeLimit === 'function') {
+						try {
+							onAdjustTimeLimit(completionResult.proposedLimit);
+						} catch (e) {
+							// ignore
+						}
+					}
 					// ensure quiz is shown (manager.reportCompletion normally does this)
 					if (typeof manager.setShowQuiz === 'function') manager.setShowQuiz(true);
 				} catch (e) {

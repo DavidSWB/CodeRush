@@ -46,6 +46,8 @@ export function initBackground() {
   const particleCount = 30;
   const bubbleCount = 30;
   const neonColors = ['#ff5e5e', '#5efff7', '#fffb5e', '#c5ff5e', '#5e72ff', '#ff5ec8', '#ff6b6b', '#4ecdc4'];
+  // dynamic controls (adjusted via custom event)
+  let speedMultiplier = 1;
 
   for (let i = 0; i < particleCount; i++) {
     particles.push({
@@ -104,17 +106,19 @@ export function initBackground() {
   }
 
   function drawParticles() {
-    particles.forEach(particle => {
+    particles.forEach((particle) => {
       ctx.save();
       ctx.translate(particle.x, particle.y);
       ctx.rotate(particle.rotation * Math.PI / 180);
 
       ctx.font = `bold ${particle.size}px 'Courier New', monospace`;
-      ctx.fillStyle = particle.color;
+      // use each particle's original color (no global cycling)
+      const fillCol = particle.color || neonColors[Math.floor(Math.random() * neonColors.length)];
+      ctx.fillStyle = fillCol;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.shadowBlur = 10;
-      ctx.shadowColor = particle.color;
+      ctx.shadowColor = fillCol;
       ctx.fillText(particle.text, 0, 0);
 
       ctx.restore();
@@ -122,13 +126,14 @@ export function initBackground() {
   }
 
   function drawBubbles() {
-    bubbles.forEach(bubble => {
+    bubbles.forEach((bubble) => {
+      const col = bubble.color || neonColors[Math.floor(Math.random() * neonColors.length)];
       const gradient = ctx.createRadialGradient(
         bubble.x, bubble.y, 0,
         bubble.x, bubble.y, bubble.size
       );
-      gradient.addColorStop(0, `${bubble.color}cc`);
-      gradient.addColorStop(1, `${bubble.color}00`);
+      gradient.addColorStop(0, `${col}cc`);
+      gradient.addColorStop(1, `${col}00`);
 
       ctx.beginPath();
       ctx.arc(bubble.x, bubble.y, bubble.size * (1 + Math.sin(bubble.pulse) * 0.1), 0, Math.PI * 2);
@@ -136,8 +141,8 @@ export function initBackground() {
       ctx.fill();
 
       ctx.shadowBlur = 20;
-      ctx.shadowColor = bubble.color;
-      ctx.strokeStyle = bubble.color;
+      ctx.shadowColor = col;
+      ctx.strokeStyle = col;
       ctx.lineWidth = 2;
       ctx.stroke();
       ctx.shadowBlur = 0;
@@ -170,9 +175,9 @@ export function initBackground() {
 
   function updateParticles() {
     particles.forEach(particle => {
-      particle.x += particle.speedX;
-      particle.y += particle.speedY;
-      particle.rotation += particle.rotationSpeed;
+      particle.x += particle.speedX * speedMultiplier;
+      particle.y += particle.speedY * speedMultiplier;
+      particle.rotation += particle.rotationSpeed * speedMultiplier;
 
       if (particle.x < -20) particle.x = width + 20;
       if (particle.x > width + 20) particle.x = -20;
@@ -183,9 +188,9 @@ export function initBackground() {
 
   function updateBubbles() {
     bubbles.forEach((bubble, index) => {
-      bubble.x += bubble.speedX;
-      bubble.y += bubble.speedY;
-      bubble.pulse += bubble.pulseSpeed;
+      bubble.x += bubble.speedX * speedMultiplier;
+      bubble.y += bubble.speedY * speedMultiplier;
+      bubble.pulse += bubble.pulseSpeed * speedMultiplier;
 
       if (bubble.y < -bubble.size) {
         bubbles.splice(index, 1);
@@ -242,7 +247,7 @@ export function initBackground() {
     ctx.fillStyle = 'rgba(28, 28, 28, 0.1)';
     ctx.fillRect(0, 0, width, height);
 
-    updateParticles();
+  updateParticles();
     updateBubbles();
 
     drawParticles();
@@ -263,10 +268,27 @@ export function initBackground() {
 
   animate();
 
+  // allow external control via custom event to modify intensity/speed and color cycling
+  function onBgUpdate(e) {
+    try {
+      const detail = e && e.detail ? e.detail : {};
+      const timeRemaining = typeof detail.timeRemaining === 'number' ? detail.timeRemaining : 0;
+      const timeLimit = typeof detail.timeLimit === 'number' && detail.timeLimit > 0 ? detail.timeLimit : 15;
+      const ratio = Math.max(0, Math.min(1, timeRemaining / timeLimit));
+  // more remaining time -> slower background; less remaining -> more frenetic
+  speedMultiplier = 0.3 + (1 - ratio) * 2.5; // ranges ~0.3..2.8
+    } catch (err) {
+      // ignore
+    }
+  }
+
+  window.addEventListener('coderush-bg-update', onBgUpdate);
+
   // store cleanup handles on element for removal later
   canvas._bg_cleanup = () => {
     window.removeEventListener('resize', resizeCanvas);
     if (rafId) cancelAnimationFrame(rafId);
+    window.removeEventListener('coderush-bg-update', onBgUpdate);
   };
 }
 
