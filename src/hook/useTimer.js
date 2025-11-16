@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 export default function useTimer({ initialLimit = 15, min = 5, max = 180, onTimeout } = {}) {
-  const [timeLimit, setTimeLimit] = useState(initialLimit);
+  const [timeLimit, setTimeLimitRaw] = useState(initialLimit);
   const [timeRemaining, setTimeRemaining] = useState(initialLimit);
   const [isPaused, setIsPaused] = useState(false);
   const [started, setStarted] = useState(false);
@@ -10,10 +10,12 @@ export default function useTimer({ initialLimit = 15, min = 5, max = 180, onTime
   const exerciseStartRef = useRef(null);
   const pauseStartRef = useRef(null);
   const pausedAccumRef = useRef(0);
+  // callbackRef removed; callbacks will be executed synchronously when setting limit
 
   useEffect(() => {
     // keep timeRemaining in sync when timeLimit changes between exercises
     setTimeRemaining(timeLimit);
+    console.log('[TTE UPDATE] timeLimit changed:', { newTimeLimit: timeLimit, timeRemaining: timeLimit });
   }, [timeLimit]);
 
   useEffect(() => {
@@ -32,7 +34,9 @@ export default function useTimer({ initialLimit = 15, min = 5, max = 180, onTime
     // Crear nuevo intervalo
     timerRef.current = setInterval(() => {
       setTimeRemaining(prev => {
+        console.log('[TIMER TICK]', { timeRemaining: prev });
         if (prev <= 1) {
+          console.log('[TIMER TICK] TIMEOUT - timeRemaining:', { prev });
           clearInterval(timerRef.current);
           timerRef.current = null;
           setStarted(false);
@@ -44,8 +48,23 @@ export default function useTimer({ initialLimit = 15, min = 5, max = 180, onTime
     }, 1000);
   };
 
+  // new wrapper setter which accepts an optional callback to be executed after state change
+  const setTimeLimit = (newLimit, callback = null) => {
+    // Update the underlying state
+    setTimeLimitRaw(newLimit);
+    // Immediately sync timeRemaining to avoid leftover seconds from previous exercise
+    try {
+      setTimeRemaining(newLimit);
+    } catch (e) { /* ignore */ }
+    // Execute callback synchronously so callers can perform post-update actions
+    if (typeof callback === 'function') {
+      try { callback(); } catch (e) { /* ignore */ }
+    }
+  };
+
   const stopInterval = () => {
     if (timerRef.current) {
+      console.log('[TIMER TICK] stopInterval called', { timeRemaining });
       clearInterval(timerRef.current);
       timerRef.current = null;
     }

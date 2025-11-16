@@ -197,7 +197,7 @@ header h1 {
   background: transparent;
   padding: 15px;
   margin: 0;
-  font-size: 1.1em;
+  font-size: 1.43em; /* increased ~30% */
   line-height: 1.5;
   color: #e0e0e0;
   flex: 1;
@@ -407,7 +407,7 @@ header h1 {
   .description-text,
   .feedback {
     padding: 10px;
-    font-size: 0.8em;
+    font-size: 1.04em; /* increased ~30% from 0.8em */
   }
 }
 

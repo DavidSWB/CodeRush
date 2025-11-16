@@ -14,12 +14,9 @@ export default function useExerciseFlow({ timer, manager, onColorChange, onTimeo
 		setHasError(false);
 		setIncorrectChar('');
 		if (typeof onColorChange === 'function') onColorChange();
-		// resetForNewExercise must be called AFTER manager.generateNewExercise() 
-		// because generateNewExercise calls onAdjustTimeLimit which updates timeLimit asynchronously
-		// We use a small setTimeout to ensure timeLimit has been updated before resetting
-		setTimeout(() => {
-			if (timer && typeof timer.resetForNewExercise === 'function') timer.resetForNewExercise();
-		}, 0);
+		// resetForNewExercise must be called AFTER manager.generateNewExercise()
+		// With the new callback mechanism, we no longer need the fragile setTimeout.
+		// Post-update reset will be executed via the callback passed to onAdjustTimeLimit.
 	}, [manager, onColorChange, timer]);
 
 	const handleTimeout = useCallback(() => {
@@ -27,19 +24,23 @@ export default function useExerciseFlow({ timer, manager, onColorChange, onTimeo
 		// When timeout occurs, increase the time limit for the next exercise
 		const currentTimeLimit = (timer && timer.timeLimit) || 15;
 		const newTTE = Math.min(30, currentTimeLimit + 3); // MAX_TTE = 30
+		console.log('[TIMEOUT] newTTE calculated:', { currentTimeLimit, newTTE });
 		// persist the nextTimeLimit in manager if available
 		if (manager && typeof manager.setNextTimeLimit === 'function') {
 			try { manager.setNextTimeLimit(newTTE); } catch (e) { /* ignore */ }
 		}
 		// apply the new time limit immediately so the very next exercise starts with it
 		if (typeof onAdjustTimeLimit === 'function') {
-			try { onAdjustTimeLimit(newTTE); } catch (e) { /* ignore */ }
+			const postUpdateCallback = () => {
+				try {
+					if (timer && typeof timer.resetForNewExercise === 'function') timer.resetForNewExercise();
+				} catch (e) { /* ignore */ }
+				generateNewExercise();
+			};
+			try {
+				onAdjustTimeLimit(newTTE, postUpdateCallback);
+			} catch (e) { /* ignore */ }
 		}
-		// reset timer state after applying new limit
-		setTimeout(() => {
-			if (timer && typeof timer.resetForNewExercise === 'function') timer.resetForNewExercise();
-			generateNewExercise();
-		}, 200);
 	}, [generateNewExercise, manager, timer]);
 
 	// wire timeout into caller-provided ref
@@ -117,20 +118,23 @@ export default function useExerciseFlow({ timer, manager, onColorChange, onTimeo
 			if (manager && typeof manager.reportCompletion === 'function') {
 				try {
 					const completionResult = manager.reportCompletion({ timeUsedSeconds, timeLimit: (timer && timer.timeLimit) || 0, currentExerciseLevel: manager.currentExerciseLevel });
-					// Apply the adjusted time limit IMMEDIATELY before showing quiz
+					console.log('[COMPLETION FLOW]', { timeUsedSeconds, proposedLimit: completionResult && completionResult.proposedLimit });
+					// Apply the adjusted time limit IMMEDIATELY before showing quiz using a callback
+					// so the timer reset is performed only after the new limit takes effect.
 					if (completionResult && completionResult.proposedLimit && typeof onAdjustTimeLimit === 'function') {
-						try {
-							onAdjustTimeLimit(completionResult.proposedLimit);
-							// ensure timer state is reset to the new limit before next exercise
-							setTimeout(() => {
+						const postUpdateCallback = () => {
+							try {
 								if (timer && typeof timer.resetForNewExercise === 'function') timer.resetForNewExercise();
-							}, 0);
-						} catch (e) {
-							// ignore
-						}
+							} catch (e) { /* ignore */ }
+							if (typeof manager.setShowQuiz === 'function') manager.setShowQuiz(true);
+						};
+						try {
+							onAdjustTimeLimit(completionResult.proposedLimit, postUpdateCallback);
+						} catch (e) { /* ignore */ }
+					} else {
+						// fallback: show quiz now if no callback mechanism is available
+						if (typeof manager.setShowQuiz === 'function') manager.setShowQuiz(true);
 					}
-					// ensure quiz is shown (manager.reportCompletion normally does this)
-					if (typeof manager.setShowQuiz === 'function') manager.setShowQuiz(true);
 				} catch (e) {
 					// unexpected error during completion flow must not leave app stuck
 					// fallback: generate a new exercise after a short delay
