@@ -75,7 +75,18 @@ export default function useExerciseManager({ onCorrectQuiz, onAdjustTimeLimit, o
       case 'advanced': exercises = ejerciciosAvanzados; break;
       default: exercises = ejerciciosBasicos;
     }
-    const newExerciseObject = getRandomExercise(exercises);
+    // Avoid returning the exact same exercise consecutively when possible
+    let newExerciseObject = getRandomExercise(exercises);
+    try {
+      const prevCode = exercise && exercise.code ? exercise.code : null;
+      let attempts = 0;
+      while (prevCode && newExerciseObject && newExerciseObject.code === prevCode && attempts < 6) {
+        newExerciseObject = getRandomExercise(exercises);
+        attempts += 1;
+      }
+    } catch (e) {
+      // ignore and fall back to whatever was picked
+    }
     setCurrentExerciseLevel(randomLevel);
     setExercise(newExerciseObject);
     
@@ -225,27 +236,25 @@ export default function useExerciseManager({ onCorrectQuiz, onAdjustTimeLimit, o
   persist.set('last-consumptions', newConsumptions);
 
     // Ajuste del TTE (Tiempo Total del Ejercicio)
-    // The time limit is ALWAYS reset to its initial value, then adjusted based on performance
-    const INITIAL_TTE = 15; // default starting time
+    // The time limit should be adjusted relative to the current timeLimit
     const MIN_TTE = 5;  // never go below 5s
     const MAX_TTE = 30; // never go above 30s
     const TTE_CHANGE = 3; // change amount when adjusting
-    
-    // STEP 1: Always reset to initial time limit
-    let newTTE = INITIAL_TTE;
-    
-    // STEP 2: Adjust based on how fast/slow the user completed the exercise
-    // If completed very fast (<5s) AND initial timeLimit is >= 8s, reduce by 3s
-    if (timeUsedSeconds < 5 && INITIAL_TTE >= 8) {
-      newTTE = Math.max(MIN_TTE, INITIAL_TTE - TTE_CHANGE);
-    } 
+
+    // Start from the current timeLimit passed by caller
+    let newTTE = typeof timeLimit === 'number' && timeLimit > 0 ? timeLimit : 15;
+
+    // If completed very fast (<3s) AND current timeLimit is >= 8s, reduce by 3s
+    // We use the actual typing duration provided by the timer (timeUsedSeconds)
+    if (timeUsedSeconds < 3 && newTTE >= 8) {
+      newTTE = Math.max(MIN_TTE, newTTE - TTE_CHANGE);
+    }
     // If completed very slow (>15s), increase by 3s
     else if (timeUsedSeconds > 15) {
-      newTTE = Math.min(MAX_TTE, INITIAL_TTE + TTE_CHANGE);
+      newTTE = Math.min(MAX_TTE, newTTE + TTE_CHANGE);
     }
-    // Otherwise keep the initial time limit unchanged
-    
-    // Store the new time limit to apply when next exercise is generated
+
+    // Store the new time limit to apply when next exercise is generated (for persistence/visibility)
     setNextTimeLimit(newTTE);
 
   // pick a random quiz question and show quiz

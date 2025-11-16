@@ -25,16 +25,21 @@ export default function useExerciseFlow({ timer, manager, onColorChange, onTimeo
 	const handleTimeout = useCallback(() => {
 		if (manager && typeof manager.setStreak === 'function') manager.setStreak(0);
 		// When timeout occurs, increase the time limit for the next exercise
+		const currentTimeLimit = (timer && timer.timeLimit) || 15;
+		const newTTE = Math.min(30, currentTimeLimit + 3); // MAX_TTE = 30
+		// persist the nextTimeLimit in manager if available
 		if (manager && typeof manager.setNextTimeLimit === 'function') {
-			const currentTimeLimit = (timer && timer.timeLimit) || 15;
-			const newTTE = Math.min(30, currentTimeLimit + 3); // MAX_TTE = 30
-			try {
-				manager.setNextTimeLimit(newTTE);
-			} catch (e) {
-				// ignore
-			}
+			try { manager.setNextTimeLimit(newTTE); } catch (e) { /* ignore */ }
 		}
-		setTimeout(() => generateNewExercise(), 800);
+		// apply the new time limit immediately so the very next exercise starts with it
+		if (typeof onAdjustTimeLimit === 'function') {
+			try { onAdjustTimeLimit(newTTE); } catch (e) { /* ignore */ }
+		}
+		// reset timer state after applying new limit
+		setTimeout(() => {
+			if (timer && typeof timer.resetForNewExercise === 'function') timer.resetForNewExercise();
+			generateNewExercise();
+		}, 200);
 	}, [generateNewExercise, manager, timer]);
 
 	// wire timeout into caller-provided ref
@@ -113,10 +118,13 @@ export default function useExerciseFlow({ timer, manager, onColorChange, onTimeo
 				try {
 					const completionResult = manager.reportCompletion({ timeUsedSeconds, timeLimit: (timer && timer.timeLimit) || 0, currentExerciseLevel: manager.currentExerciseLevel });
 					// Apply the adjusted time limit IMMEDIATELY before showing quiz
-					// This ensures the next exercise uses the correct time limit without delay
 					if (completionResult && completionResult.proposedLimit && typeof onAdjustTimeLimit === 'function') {
 						try {
 							onAdjustTimeLimit(completionResult.proposedLimit);
+							// ensure timer state is reset to the new limit before next exercise
+							setTimeout(() => {
+								if (timer && typeof timer.resetForNewExercise === 'function') timer.resetForNewExercise();
+							}, 0);
 						} catch (e) {
 							// ignore
 						}
